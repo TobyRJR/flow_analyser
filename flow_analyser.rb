@@ -1,4 +1,4 @@
-Traffic_units= { :k => 1000, :M => 1000000, :G => 1000000000 }
+Traffic_units= { :k => 1000, :M => 1000000, :G => 1000000000, :T => 1000000000000 }
 
 LOOKUP_PREFIX = "dig +short "
 LOOKUP_SUFFIX = ".origin.asn.cymru.com TXT"
@@ -35,7 +35,7 @@ class Host
     string = LOOKUP_PREFIX + @asn + AS_LOOKUP_SUFFIX
     #puts "#{string}"
     #puts `#{string}`
-    self.as_name = `#{string}`.slice(1..-2).split("|")[-1] || "<no AS name>"    
+    self.as_name = `#{string}`.strip.slice(1..-2).split("|")[-1] || "<no AS name>"    
   end
 end
 
@@ -63,6 +63,10 @@ class Record
 
   def asn
     self.host ? host.asn : "<nil>"
+  end
+
+  def as_country
+    self.host ? host.as_country : "<nil>"
   end
 
   def as_name
@@ -104,12 +108,12 @@ lines.each do |line|
   fields = line.split(" ") || next
   #puts fields.to_s
   #puts fields[4] + "\t" + fields[6] + fields[7]
-  records << Record.new(:host => Host.new(:address => fields[4]), :traffic => fields[6], :units => fields[7])
+  records << Record.new(:host => Host.new(:address => fields[4]), :traffic => fields[8], :units => fields[9])
 end
 
 records.each do |record|
   #record.host.set_asn
   #record.host.set_as_name
   record.host.details_lookup
-  puts record.ip_address + "\t" + record.asn + "\t" + record.as_name + record.traffic_volume.to_s
+  puts record.ip_address + " | " + record.as_country + " | " + record.asn + " | " + record.as_name + " | " + record.traffic_volume.to_s
 end
