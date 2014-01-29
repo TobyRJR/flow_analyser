@@ -39,6 +39,25 @@ class Host
   end
 end
 
+class FlowRecord
+  attr_accessor :bytes, :host, :line
+
+  def initialize(str)
+    clean(str)
+    @line = str
+    #parts = str.split(" ")
+    #analyse(parts)
+  end
+
+  def clean(str)
+    str.gsub!(/[(][^A-Za-z]*[)]/,'')
+  end
+
+  def analyse(parts)
+    
+  end
+end
+
 class Record
   attr_accessor :host, :traffic_volume
 
@@ -98,14 +117,16 @@ lines = []
 
 File.open(source_file_name,"r") { |file|
   file.each_line do |line|
-  lines << line.gsub(/[(][^A-Za-z]*[)]/,'')    
+  #lines << line.gsub(/[(][^A-Za-z]*[)]/,'')    
+  lines << line
   end 
 }
 
 records =[]
 
 lines.each do |line|
-  fields = line.split(" ") || next
+  flow_record = FlowRecord.new(line)
+  fields = flow_record.line.split(" ") || next
   #puts fields.to_s
   #puts fields[4] + "\t" + fields[6] + fields[7]
   records << Record.new(:host => Host.new(:address => fields[4]), :traffic => fields[8], :units => fields[9])
