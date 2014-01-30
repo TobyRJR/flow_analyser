@@ -4,6 +4,37 @@ LOOKUP_PREFIX = "dig +short "
 LOOKUP_SUFFIX = ".origin.asn.cymru.com TXT"
 AS_LOOKUP_SUFFIX = ".asn.cymru.com TXT"
 
+IP_PATTERN = /(\d{1,3}\.){3,3}\d{1,3}/
+NUM_PATTERN = /\d+\.?\d*\s?[kKMGT]?/
+DATE_PATTERN = /\d{4,4}-\d\d-\d\d\s\d\d:\d\d:\d\d\.?\d*/
+
+class FieldConfig
+  attr_accessor :field_sequence
+
+  def initialize(str)
+    #puts str
+    fields = { :date_time => ["Date first seen", DATE_PATTERN]
+               :host => ["Src IP Addr", IP_PATTERN]
+               :duration => ["Duration", /\d+\.?\d*/]
+               :protocol => ["Proto", /[A-Za-z]+/]
+               :flows => ["Flows", NUM_PATTERN]
+               :packets => ["Packets", NUM_PATTERN]
+               :bytes => ["Bytes", NUM_PATTERN] 
+               :bps => ["bps", NUM_PATTERN]
+               :pps => ["pps", NUM_PATTERN]
+               :bpp => ["bpp", NUM_PATTERN] }
+    str.gsub!("(%)","")
+    
+    @field_sequence = {}
+    
+    fields.each do |key,value|
+      #puts str
+      field_sequence[key] = str.index(value[0])
+      str = str.gsub(value) { |s| " "*s.length }      
+    end
+  end
+end
+
 class Host
   attr_accessor :ip_address, :asn, :as_name, :as_country
 
@@ -123,6 +154,14 @@ File.open(source_file_name,"r") { |file|
 }
 
 records =[]
+
+header = lines.shift
+
+field_config = FieldConfig.new(header)
+
+puts field_config.field_sequence.inspect
+
+exit
 
 lines.each do |line|
   flow_record = FlowRecord.new(line)
