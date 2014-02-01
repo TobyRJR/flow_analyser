@@ -75,65 +75,18 @@ class AutoSys
     end
   end
 
-  def set_as
-    string = LOOKUP_PREFIX + self.reverse_address + LOOKUP_SUFFIX
-    #self.asn =  "AS" + `#{string}`.slice(1..-2).split("|")[0].strip || "<no ASN>"
-    result =  `#{string}`.slice(1..-2).split("|")
-    AutoSys.set_asn(@as = "AS" + result[0].strip || "<no ASN>")
-    self.as_country = result[2] || "<no country>"    
-  end
-
-  def set_as_name
-    unless  Host.as_names_map[@asn] then
-      string = LOOKUP_PREFIX + @asn + AS_LOOKUP_SUFFIX
-      result = `#{string}`
-      unless result =~ /.*\|.*/ then
-        Host.as_names_map[@asn] = "<no AS name>"
-      else
-        Host.as_names_map[@asn] = result.strip.slice(1..-2).split("|")[-1] || "<no AS name>"
-      end
-    end
-    @as_name = Host.as_names_map[@asn]
-  end
-
 end
 
 class Host
   attr_accessor :ip_address, :as # :as_country
 
-  #@as_names_map = {}
-
-  #class << self
-  #  attr_accessor :as_names_map
-  #end 
-
   def initialize(args)
     @ip_address = args[:address]
     @as = AutoSys.collection[args[:asn]] || AutoSys.new(args[:address],self)    
-    #@as_name = args[:as_name]    
   end
 
   def reverse_address
     @ip_address.split(".").reverse.join(".")
-  end
-
-
-  def details_lookup
-    set_as
-    set_as_name
-    #string = LOOKUP_PREFIX + self.reverse_address + LOOKUP_SUFFIX
-    #as_lookup = `#{string}`.slice(1..-2).split("|")
-    #self.asn = "AS" + as_lookup[0].strip || "<no ASN>"
-    #self.as_country = as_lookup[2] || "<no country>"
-    string = LOOKUP_PREFIX + @asn + AS_LOOKUP_SUFFIX
-    #puts "#{string}"
-    #puts `#{string}`
-    #result = `#{string}`
-    #unless result =~ /.*\|.*/ then
-    #  self.as_name = "<no AS name>"
-    #else  
-    #  self.as_name = result.strip.slice(1..-2).split("|")[-1] || "<no AS name>"    
-    #end
   end
 
   def details
@@ -147,8 +100,6 @@ class Record
   attr_accessor :host, :traffic_volume, :bytes
 
   def initialize(line,format)
-    #puts format.inspect
-    # delete values in brackets
     line.gsub!( /\(\s*\d+\.?\d*\s*\)/,"") 
     format.each do |pair|
       set_method = "set_" + pair[0].to_s
@@ -171,8 +122,6 @@ class Record
   end
 
   def set_bytes(str)
-    #puts Traffic_units[str.split(" ")[1].intern] || 1
-    #puts str
     @bytes = str.split(" ")[0].to_f * (Traffic_units[str.split(" ")[1].intern] || 1).to_i
   end
 
@@ -226,8 +175,7 @@ lines = []
 
 File.open(source_file_name,"r") { |file|
   file.each_line do |line|
-  #lines << line.gsub(/[(][^A-Za-z]*[)]/,'')    
-  lines << line
+    lines << line
   end 
 }
 
@@ -237,27 +185,11 @@ header = lines.shift
 
 field_format = FieldFormat.new(header).ordered_fields
 
-#puts field_config.field_sequence.inspect
-
-#exit
-
 lines.each do |line|
-  #record = Record.new(line,field_format)
   records << Record.new(line,field_format)
-  #fields = flow_record.line.split(" ") || next
-  #puts fields.to_s
-  #puts fields[4] + "\t" + fields[6] + fields[7]
-  #records << Record.new(:host => Host.new(:address => fields[4]), :traffic => fields[8], :units => fields[9])
 end
 
 records.each do |record|
-  #record.host.set_asn
-  #record.host.set_as_name
-  #puts record.host.inspect
-  #unless record.host then exit end
-  #record.details_lookup
-  #puts record.ip_address + " | " + record.as_country + " | " + record.asn + " | " + record.as_name + " | " + record.bytes.to_s
   puts record.details
 end
 
-#puts AutoSys.collection.inspect
