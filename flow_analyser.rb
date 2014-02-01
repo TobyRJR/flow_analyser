@@ -10,7 +10,6 @@ IP_PATTERN = /(\d{1,3}\.){3,3}\d{1,3}/
 NUM_PATTERN = /\d+\.?\d*\s?[kKMGT]?/
 DATE_PATTERN = /\d{4,4}-\d\d-\d\d\s\d\d:\d\d:\d\d\.?\d*/
 
-as_names = {}
 
 class FieldFormat
   attr_accessor :ordered_fields
@@ -45,8 +44,29 @@ class FieldFormat
   end
 end
 
+class AutoSys
+  attr_accessor :asn, :as_name, :bytes
+
+  class << self
+    attr_accessor :names_map
+  end
+  
+  @names_map = {}
+
+  def initialize(num)
+    @asn = num
+  end
+
+end
+
 class Host
   attr_accessor :ip_address, :asn, :as_name, :as_country
+
+  @as_names_map = {}
+
+  class << self
+    attr_accessor :as_names_map
+  end 
 
   def initialize(args)
     @ip_address = args[:address]
@@ -60,32 +80,41 @@ class Host
 
   def set_asn
     string = LOOKUP_PREFIX + self.reverse_address + LOOKUP_SUFFIX
-    self.asn =  "AS" + `#{string}`.slice(1..-2).split("|")[0].strip || "<no ASN>"
+    #self.asn =  "AS" + `#{string}`.slice(1..-2).split("|")[0].strip || "<no ASN>"
+    result =  `#{string}`.slice(1..-2).split("|")
+    self.asn = "AS" + result[0].strip || "<no ASN>"
+    self.as_country = result[2] || "<no country>"    
   end
 
   def set_as_name
-    string = LOOKUP_PREFIX + @asn + AS_LOOKUP_SUFFIX
-    self.as_name = `#{string}`.split("|")[-1] || "<no AS name>"
+    unless  Host.as_names_map[@asn] then
+      string = LOOKUP_PREFIX + @asn + AS_LOOKUP_SUFFIX
+      result = `#{string}`
+      unless result =~ /.*\|.*/ then
+        Host.as_names_map[@asn] = "<no AS name>"
+      else
+        Host.as_names_map[@asn] = result.strip.slice(1..-2).split("|")[-1] || "<no AS name>"
+      end
+    end
+    @as_name = Host.as_names_map[@asn]
   end
 
   def details_lookup
-    string = LOOKUP_PREFIX + self.reverse_address + LOOKUP_SUFFIX
-    as_lookup = `#{string}`.slice(1..-2).split("|")
-    self.asn = "AS" + as_lookup[0].strip || "<no ASN>"
-    self.as_country = as_lookup[2] || "<no country>"
+    set_asn
+    set_as_name
+    #string = LOOKUP_PREFIX + self.reverse_address + LOOKUP_SUFFIX
+    #as_lookup = `#{string}`.slice(1..-2).split("|")
+    #self.asn = "AS" + as_lookup[0].strip || "<no ASN>"
+    #self.as_country = as_lookup[2] || "<no country>"
     string = LOOKUP_PREFIX + @asn + AS_LOOKUP_SUFFIX
     #puts "#{string}"
     #puts `#{string}`
-    result = `#{string}`
-    unless result =~ /.*\|.*/ then
-      self.as_name = "<no AS name>"
-    else  
-      self.as_name = result.strip.slice(1..-2).split("|")[-1] || "<no AS name>"    
-    end
-  end
-
-  def as_name_lookup
-    
+    #result = `#{string}`
+    #unless result =~ /.*\|.*/ then
+    #  self.as_name = "<no AS name>"
+    #else  
+    #  self.as_name = result.strip.slice(1..-2).split("|")[-1] || "<no AS name>"    
+    #end
   end
 
 end
