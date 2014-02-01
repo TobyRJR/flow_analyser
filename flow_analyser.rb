@@ -45,44 +45,41 @@ class FieldFormat
 end
 
 class AutoSys
-  attr_accessor :asn, :as_name, :bytes
+  attr_accessor :number, :name, :bytes, :country
 
   class << self
     attr_accessor :names_map
+    attr_accessor :collection
   end
   
   @names_map = {}
+  @collection = {}
 
-  def initialize(num)
-    @asn = num
+  def initialize(num,host)
+    #@number = num
+    #puts "num is #{num}"
+    AutoSys.collection[num] = self 
+    string = LOOKUP_PREFIX + host.reverse_address + LOOKUP_SUFFIX
+    result =  `#{string}`.slice(1..-2).split("|")
+    @number = "AS" + result[0].strip || "<no ASN>"
+    @country = result[2] || "<no country>"    
+    string = LOOKUP_PREFIX + @number + AS_LOOKUP_SUFFIX
+    #puts string
+    result = `#{string}`
+    unless result =~ /.*\|.*/ then
+      #AutoSys.names_map[@number] = "<no AS name>"
+      @name = "<no AS name>"
+    else
+      #AutoSys.names_map[@number] = result.strip.slice(1..-2).split("|")[-1] || "<no AS name>"
+      @name = result.strip.slice(1..-2).split("|")[-1] || "<no AS name>"
+    end
   end
 
-end
-
-class Host
-  attr_accessor :ip_address, :asn, :as_name, :as_country
-
-  @as_names_map = {}
-
-  class << self
-    attr_accessor :as_names_map
-  end 
-
-  def initialize(args)
-    @ip_address = args[:address]
-    @asn = args[:asn]    
-    @as_name = args[:as_name]    
-  end
-
-  def reverse_address
-    @ip_address.split(".").reverse.join(".")
-  end
-
-  def set_asn
+  def set_as
     string = LOOKUP_PREFIX + self.reverse_address + LOOKUP_SUFFIX
     #self.asn =  "AS" + `#{string}`.slice(1..-2).split("|")[0].strip || "<no ASN>"
     result =  `#{string}`.slice(1..-2).split("|")
-    self.asn = "AS" + result[0].strip || "<no ASN>"
+    AutoSys.set_asn(@as = "AS" + result[0].strip || "<no ASN>")
     self.as_country = result[2] || "<no country>"    
   end
 
@@ -99,8 +96,30 @@ class Host
     @as_name = Host.as_names_map[@asn]
   end
 
+end
+
+class Host
+  attr_accessor :ip_address, :as # :as_country
+
+  #@as_names_map = {}
+
+  #class << self
+  #  attr_accessor :as_names_map
+  #end 
+
+  def initialize(args)
+    @ip_address = args[:address]
+    @as = AutoSys.collection[args[:asn]] || AutoSys.new(args[:address],self)    
+    #@as_name = args[:as_name]    
+  end
+
+  def reverse_address
+    @ip_address.split(".").reverse.join(".")
+  end
+
+
   def details_lookup
-    set_asn
+    set_as
     set_as_name
     #string = LOOKUP_PREFIX + self.reverse_address + LOOKUP_SUFFIX
     #as_lookup = `#{string}`.slice(1..-2).split("|")
@@ -115,6 +134,10 @@ class Host
     #else  
     #  self.as_name = result.strip.slice(1..-2).split("|")[-1] || "<no AS name>"    
     #end
+  end
+
+  def details
+    (ip_address || "nil") + " | " + (as.country || "nil") + " | " + (as.number || "nil") + " | " + (as.name || "nil") 
   end
 
 end
@@ -135,6 +158,12 @@ class Record
       if respond_to?(set_method) && value then self.send(set_method,value) end
     end
     #exit
+  end
+
+  def details
+    unless host.nil?
+      host.details + " | " + (bytes.to_s || "nil")
+    end
   end
 
   def set_host(str)
@@ -226,6 +255,9 @@ records.each do |record|
   #record.host.set_as_name
   #puts record.host.inspect
   #unless record.host then exit end
-  record.details_lookup
-  puts record.ip_address + " | " + record.as_country + " | " + record.asn + " | " + record.as_name + " | " + record.bytes.to_s
+  #record.details_lookup
+  #puts record.ip_address + " | " + record.as_country + " | " + record.asn + " | " + record.as_name + " | " + record.bytes.to_s
+  puts record.details
 end
+
+#puts AutoSys.collection.inspect
