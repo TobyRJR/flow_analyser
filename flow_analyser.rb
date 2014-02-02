@@ -55,14 +55,23 @@ class AutoSys
   @names_map = {}
   @collection = {}
 
-  def initialize(num,host)
-    #@number = num
+  def AutoSys.update_bytes(record)
+    #puts record.host.as.raw_number
+    #puts AutoSys.collection[record.host.as.number].inspect
+    if record.host && AutoSys.collection[record.host.as.number]
+      AutoSys.collection[record.host.as.number].bytes += record.bytes.to_i
+    end
+  end
+
+  def initialize(args)
+    @bytes = 0
+    @number = args[:asn]
     #puts "num is #{num}"
-    AutoSys.collection[num] = self 
-    string = LOOKUP_PREFIX + host.reverse_address + LOOKUP_SUFFIX
-    result =  `#{string}`.slice(1..-2).split("|")
-    @number = "AS" + result[0].strip || "<no ASN>"
-    @country = result[2] || "<no country>"    
+    AutoSys.collection[@number] = self 
+    #string = LOOKUP_PREFIX + host.reverse_address + LOOKUP_SUFFIX
+    #result =  `#{string}`.slice(1..-2).split("|")
+    #@number = "AS" + result[0].strip || "<no ASN>"
+    @country = args[:country]   
     string = LOOKUP_PREFIX + @number + AS_LOOKUP_SUFFIX
     #puts string
     result = `#{string}`
@@ -75,6 +84,10 @@ class AutoSys
     end
   end
 
+  def raw_number
+    @number.gsub(/^AS/,"")
+  end
+
 end
 
 class Host
@@ -82,7 +95,11 @@ class Host
 
   def initialize(args)
     @ip_address = args[:address]
-    @as = AutoSys.collection[args[:asn]] || AutoSys.new(args[:address],self)    
+    string = LOOKUP_PREFIX + reverse_address + LOOKUP_SUFFIX
+    result =  `#{string}`.slice(1..-2).split("|")
+    asn = "AS" + result[0].strip || "<no ASN>"
+    country = result[2] || "<no country>"    
+    @as = AutoSys.collection[asn] || AutoSys.new(:asn => asn , :host => self, :country => country)    
   end
 
   def reverse_address
@@ -108,6 +125,7 @@ class Record
       #puts "#{pair[0]} #{value}"
       if respond_to?(set_method) && value then self.send(set_method,value) end
     end
+    AutoSys.update_bytes(self)
     #exit
   end
 
@@ -161,6 +179,9 @@ for i in 0...ARGV.length
   when "-c", "--config"
     config[:conf] = ARGV[i+1]
     i= i + 1
+  when "-d", "--display"
+    config[:display_mode] = ARGV[i+1]
+    i = i + 1
   when "-h", "--help"
     puts "Usage: tbc"
     exit
@@ -189,7 +210,14 @@ lines.each do |line|
   records << Record.new(line,field_format)
 end
 
-records.each do |record|
-  puts record.details
+case config[:display_mode]
+  when "as"
+    AutoSys.collection.each do |key,as|
+      puts as.number + " | " + as.name + " | " + as.bytes.to_s
+    end
+  else
+    records.each do |record|
+    puts record.details
+  end
 end
 
