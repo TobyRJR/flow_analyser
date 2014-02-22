@@ -15,9 +15,11 @@ class FieldFormat
   attr_accessor :ordered_fields
 
   def initialize(str)
-    #puts str
+    puts str
     fields = { :date_time => ["Date first seen", DATE_PATTERN],
-               :host => ["Src IP Addr", IP_PATTERN],
+               :src_host => ["Src IP Addr", IP_PATTERN],
+               :dst_host => ["Dst IP Addr", IP_PATTERN],
+               :host => ["IP Addr", IP_PATTERN],
                :duration => ["Duration", /\d+\.?\d*/],
                :protocol => ["Proto", /[A-Za-z]+/],
                :flows => ["Flows", NUM_PATTERN],
@@ -36,6 +38,10 @@ class FieldFormat
       str = str.gsub(value[0]) { |s| " "*s.length }      
     end
     
+    field_sequence[:host] = field_sequence[:src_host] || field_sequnce[:dst_host]
+    field_sequence.delete(:src_host)
+    field_sequence.delete(:dst_host)
+    puts field_sequence.inspect
     @ordered_fields = field_sequence.sort { |a,b| a[1] <=> b[1] }
     @ordered_fields.collect! { |pair| [pair[0],fields[pair[0]][1]] }    
     #puts ordered_fields.inspect
@@ -213,7 +219,7 @@ end
 case config[:display_mode]
   when "as"
     AutoSys.collection.each do |key,as|
-      puts as.number + " | " + as.name + " | " + as.bytes.to_s
+      puts as.number + " | " + as.country + " | " + as.name + " | " + as.bytes.to_s
     end
   else
     records.each do |record|
