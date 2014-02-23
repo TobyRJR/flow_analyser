@@ -1,6 +1,6 @@
 #!/usr/bin/ruby
 
-Traffic_units= { :k => 1000, :M => 1000000, :G => 1000000000, :T => 1000000000000 }
+Traffic_units= { :k => 1000, :M => 1000000, :G => 1000000000, :T => 1000000000000, nil => 1 }
 
 LOOKUP_PREFIX = "dig +short "
 LOOKUP_SUFFIX = ".origin.asn.cymru.com TXT"
@@ -9,17 +9,20 @@ AS_LOOKUP_SUFFIX = ".asn.cymru.com TXT"
 IP_PATTERN = /(\d{1,3}\.){3,3}\d{1,3}/
 NUM_PATTERN = /\d+\.?\d*\s?[kKMGT]?/
 DATE_PATTERN = /\d{4,4}-\d\d-\d\d\s\d\d:\d\d:\d\d\.?\d*/
-
+INT_PATTERN = /\d{1,32}/
 
 class FieldFormat
   attr_accessor :ordered_fields
 
   def initialize(str)
-    puts str
+    #puts str
     fields = { :date_time => ["Date first seen", DATE_PATTERN],
                :src_host => ["Src IP Addr", IP_PATTERN],
                :dst_host => ["Dst IP Addr", IP_PATTERN],
                :host => ["IP Addr", IP_PATTERN],
+               :dst_as => ["Dst AS", INT_PATTERN],
+               :src_as => ["Src AS", INT_PATTERN],
+               :asn => ["ASN", INT_PATTERN],
                :duration => ["Duration", /\d+\.?\d*/],
                :protocol => ["Proto", /[A-Za-z]+/],
                :flows => ["Flows", NUM_PATTERN],
@@ -38,11 +41,17 @@ class FieldFormat
       str = str.gsub(value[0]) { |s| " "*s.length }      
     end
     
-    field_sequence[:host] = field_sequence[:src_host] || field_sequnce[:dst_host]
+    field_sequence[:host] = field_sequence[:src_host] || field_sequence[:dst_host]
+    field_sequence[:asn] = field_sequence[:src_as] || field_sequence[:dst_as]
     field_sequence.delete(:src_host)
     field_sequence.delete(:dst_host)
-    puts field_sequence.inspect
+    field_sequence.delete(:src_as)
+    field_sequence.delete(:dst_as)
+    field_sequence.delete_if { |key,value| value.nil? }
+    #puts field_sequence.inspect
     @ordered_fields = field_sequence.sort { |a,b| a[1] <=> b[1] }
+    #puts @ordered_fields.inspect
+    #puts fields.inspect
     @ordered_fields.collect! { |pair| [pair[0],fields[pair[0]][1]] }    
     #puts ordered_fields.inspect
     #exit
@@ -66,21 +75,25 @@ class AutoSys
     #puts AutoSys.collection[record.host.as.number].inspect
     if record.host && AutoSys.collection[record.host.as.number]
       AutoSys.collection[record.host.as.number].bytes += record.bytes.to_i
+    else
+      #puts record.asn.number
+      record.asn.bytes += record.bytes.to_i
     end
   end
 
   def initialize(args)
     @bytes = 0
-    @number = args[:asn]
+    @number = "AS" + args[:asn]
     #puts "num is #{num}"
     AutoSys.collection[@number] = self 
     #string = LOOKUP_PREFIX + host.reverse_address + LOOKUP_SUFFIX
     #result =  `#{string}`.slice(1..-2).split("|")
     #@number = "AS" + result[0].strip || "<no ASN>"
-    @country = args[:country]   
+    @country = args[:country]  || "TBC" 
     string = LOOKUP_PREFIX + @number + AS_LOOKUP_SUFFIX
     #puts string
     result = `#{string}`
+    #puts result
     unless result =~ /.*\|.*/ then
       #AutoSys.names_map[@number] = "<no AS name>"
       @name = "<no AS name>"
@@ -94,6 +107,10 @@ class AutoSys
     @number.gsub(/^AS/,"")
   end
 
+  def details
+    (country || "nil") + " | " + (number || "nil") + " | " + (name || "nil") + " | " + bytes
+  end
+
 end
 
 class Host
@@ -103,7 +120,8 @@ class Host
     @ip_address = args[:address]
     string = LOOKUP_PREFIX + reverse_address + LOOKUP_SUFFIX
     result =  `#{string}`.slice(1..-2).split("|")
-    asn = "AS" + result[0].strip || "<no ASN>"
+    #asn = "AS" + result[0].strip || "<no ASN>"
+    asn = result[0].strip || "<no ASN>"
     country = result[2] || "<no country>"    
     @as = AutoSys.collection[asn] || AutoSys.new(:asn => asn , :host => self, :country => country)    
   end
@@ -120,7 +138,7 @@ end
 
 
 class Record
-  attr_accessor :host, :traffic_volume, :bytes
+  attr_accessor :host, :traffic_volume, :bytes, :asn
 
   def initialize(line,format)
     line.gsub!( /\(\s*\d+\.?\d*\s*\)/,"") 
@@ -136,21 +154,31 @@ class Record
   end
 
   def details
-    unless host.nil?
+    if host.nil?
+      asn.details      
+    else
       host.details + " | " + (bytes.to_s || "nil")
     end
   end
 
   def set_host(str)
-    @host = Host.new(:address => str) 
+    @host = Host.new(:address => str)
   end
 
   def set_bytes(str)
-    @bytes = str.split(" ")[0].to_f * (Traffic_units[str.split(" ")[1].intern] || 1).to_i
+    factor_name = str.split(" ")[1]
+    factor = factor_name ? Traffic_units[factor_name.intern] : 1
+    @bytes = str.split(" ")[0].to_f * factor.to_i
   end
 
-  def set_asn
-    @host.set_asn
+  def set_asn(str)
+    if @host then
+      @host.set_asn
+    elsif  AutoSys.collection.include?(str)
+      @asn = AutoSys.collection[str]
+    else
+      @asn = AutoSys.new(:asn => str)
+    end
   end
 
   def ip_address
@@ -158,7 +186,7 @@ class Record
   end
 
   def asn
-    self.host ? host.asn : "<nil>"
+    self.host ? host.asn : @asn
   end
 
   def as_country
@@ -218,6 +246,7 @@ end
 
 case config[:display_mode]
   when "as"
+    puts AutoSys.collection.length
     AutoSys.collection.each do |key,as|
       puts as.number + " | " + as.country + " | " + as.name + " | " + as.bytes.to_s
     end
