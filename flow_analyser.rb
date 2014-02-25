@@ -74,9 +74,13 @@ class AutoSys
     #puts record.host.as.raw_number
     #puts AutoSys.collection[record.host.as.number].inspect
     if record.host && AutoSys.collection[record.host.as.number]
+      #puts "Bytes are #{record.bytes}"
+      #puts "Updating collection for #{record.host.as.number}, #{AutoSys.collection[record.host.as.number].bytes}"
       AutoSys.collection[record.host.as.number].bytes += record.bytes.to_i
+      #puts AutoSys.collection[record.host.as.number].bytes
     else
       #puts record.asn.number
+      #puts "Updating record for #{record.asn.number}"
       record.asn.bytes += record.bytes.to_i
     end
   end
@@ -123,7 +127,7 @@ class Host
     #asn = "AS" + result[0].strip || "<no ASN>"
     asn = result[0].strip || "<no ASN>"
     country = result[2] || "<no country>"    
-    @as = AutoSys.collection[asn] || AutoSys.new(:asn => asn , :host => self, :country => country)    
+    @as = AutoSys.collection["AS" + asn] || AutoSys.new(:asn => asn , :host => self, :country => country)    
   end
 
   def reverse_address
@@ -186,7 +190,7 @@ class Record
   end
 
   def asn
-    self.host ? host.asn : @asn
+    self.host ? host.as : @asn
   end
 
   def as_country
@@ -251,8 +255,10 @@ case config[:display_mode]
       puts as.number + " | " + as.country + " | " + as.name + " | " + as.bytes.to_s
     end
   else
+    records.sort! { |a,b| a.asn.number <=> b.asn.number }
     records.each do |record|
-    puts record.details
+     puts record.details
+     #puts record.asn
+    end
   end
-end
 
